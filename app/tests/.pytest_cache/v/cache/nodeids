@@ -1,0 +1,5 @@
+[
+  "test_model.py::test_model_info_basic",
+  "test_model.py::test_model_info_Generator",
+  "test_model.py::test_model_info"
+]
