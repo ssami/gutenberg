@@ -75,8 +75,8 @@ class FastTextModel(BaseModel):
         try:
             self.model = fastText.load_model(
                 self.model_loader.read(local_path))
-        except LoaderException:
-            raise
+        except LoaderException as e:
+            raise e
         except Exception as e:
             raise ModelException(str(e))
 

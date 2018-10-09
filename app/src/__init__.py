@@ -55,8 +55,15 @@ def main():
 @app.route("/model", methods=["PUT", "GET"])
 def all_models():
     if request.method == "GET":
-        resp = [x for x in conn.find_all_model_info(limit=15)]
-        return jsonify(resp), 200
+        limit = int(request.args.get('limit'))
+        if not limit:
+            limit = 10  # default
+        result_list = None
+        try:
+            result_list = conn.find_all_model_info(limit=limit)
+            return jsonify(result_list), 200
+        except Exception as e:
+            return jsonify(str(e)), 500
     else:
         if request.is_json:
             data = request.get_json()
@@ -68,7 +75,7 @@ def all_models():
                 return jsonify(str(e)), 500
             return jsonify(model_info.hash), 201
         else:
-            return jsonify(InvalidDataError("request is not in JSON")), 500
+            return jsonify("Request is not in JSON"), 500
 
 
 @app.route("/model/<model_id>", methods=['GET'])
@@ -83,8 +90,16 @@ def model_info(model_id):
     :return:
     """
     if request.method == "GET":
-        info_dict = conn.find_model_info(model_id)
-        return jsonify(info_dict)
+        try:
+            info_dict = conn.find_model_info(model_id)
+            if info_dict:
+                return jsonify(info_dict), 200
+            else:
+                return jsonify("Model Id {0} not found".format(model_id)), 404
+        except:
+            # DB call error, not ID error
+            return jsonify("Internal error"), 500
+
 
     # is_live = request.args.get('live', None)   # look for liveness check
     # if is_live:
@@ -109,12 +124,15 @@ def model_predict(model_id):
     :param model_id: ID of model stored in model info entry
     :return:
     """
-    info_dict = conn.find_model_info(model_id)
-    model = get_model('FastTextModel', info_dict['location'], 'MinioLoader')\
-        .load(app.instance_path)
-    if model is None:
-        raise ModelException(
-            'Model could not be found at path: {}'.format(app.instance_path))
+    try:
+        info_dict = conn.find_model_info(model_id)
+        model = get_model('FastTextModel', info_dict['location'], 'MinioLoader')\
+            .load(app.instance_path)
+        if model is None:
+            raise ModelException(
+                'Model could not be found at path: {}'.format(app.instance_path))
+    except Exception as e:
+        return jsonify(e), 500
     try:
         to_predict = json.loads(request.data.decode('utf-8'))['input']
     except Exception as e:

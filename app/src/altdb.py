@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 # cbexport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -o feedback.json -f lines
 # cbimport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -d file://feedback.json -f lines
 ##
-from couchbase.bucket import Bucket
+from couchbase.bucket import Bucket, NotFoundError
 from couchbase.views.iterator import View
 
 from src.exceptions import InvalidType
@@ -84,7 +84,11 @@ class CouchModelInfo(ModelInfoDatabase) :
         return Bucket(conn_str, username=self.user, password=self.password)
 
     def find_model_info(self, key):
-        return self.db.get(key)
+        try:
+            result = self.db.get(key)
+            return result.value
+        except NotFoundError:
+            return None
 
     def store_model_info(self, key, model_info):
         self.db.insert(key, model_info)
@@ -94,9 +98,11 @@ class CouchModelInfo(ModelInfoDatabase) :
         results = []
         count = 0
         for v in view:
-            if count > limit:
+            if count == limit:
                 break
-            results.append((v.docid, v.key, v.value))
+            model = dict()
+            model[v.key] = v.value
+            results.append(model)
             count += 1
 
         return results
