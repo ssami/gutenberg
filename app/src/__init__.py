@@ -25,13 +25,13 @@ expected output. Can do this with Redis also actually.
 
 from flask import Flask, request, jsonify, session
 
-from src.altdb import get_modelinfo_db
-from src.db import get_db
+from src.db import get_modelinfo_db
+from src.db import get_feedback_db
 from src import constants
 from src.model import ModelInfo
 from src.exceptions import InvalidDataError, ModelException
 from src.utils import allowed_files
-from src.model import get_model
+
 
 import os, json
 
@@ -39,7 +39,8 @@ app = Flask(__name__, instance_relative_config=True)
 app.config.from_object('instance.appconfig')
 app.secret_key = app.config['SECRET_KEY']
 # conn = get_db('RedisDB')
-conn = get_modelinfo_db('CouchModelInfo', user=app.config['DB_USER'], password=app.config['DB_PASS'])
+model_conn = get_modelinfo_db('CouchModelInfo', user=app.config['DB_USER'], password=app.config['DB_PASS'])
+feedback_conn = get_feedback_db('CouchFeedback', user=app.config['DB_USER'], password=app.config['DB_PASS'])
 
 # db.init_app(app)
 #TODO: fix app init
@@ -58,9 +59,8 @@ def all_models():
         limit = int(request.args.get('limit'))
         if not limit:
             limit = 10  # default
-        result_list = None
         try:
-            result_list = conn.find_all_model_info(limit=limit)
+            result_list = model_conn.find_all_model_info(limit=limit)
             return jsonify(result_list), 200
         except Exception as e:
             return jsonify(str(e)), 500
@@ -70,7 +70,7 @@ def all_models():
             model_info = ModelInfo(data['description'], data['metrics'], data['location'])
             try:
                 # todo: fix how we store a dict of metrics
-                conn.store_model_info(model_info.hash, model_info.items)
+                model_conn.store_model_info(model_info.hash, model_info.items)
             except Exception as e:
                 return jsonify(str(e)), 500
             return jsonify(model_info.hash), 201
@@ -91,7 +91,7 @@ def model_info(model_id):
     """
     if request.method == "GET":
         try:
-            info_dict = conn.find_model_info(model_id)
+            info_dict = model_conn.find_model_info(model_id)
             if info_dict:
                 return jsonify(info_dict), 200
             else:
@@ -125,14 +125,14 @@ def model_predict(model_id):
     :return:
     """
     try:
-        info_dict = conn.find_model_info(model_id)
-        model = get_model('FastTextModel', info_dict['location'], 'MinioLoader')\
+        info_dict = model_conn.find_model_info(model_id)
+        model = get_modelinfo_db('FastTextModel', info_dict['location'], 'MinioLoader')\
             .load(app.instance_path)
         if model is None:
             raise ModelException(
                 'Model could not be found at path: {}'.format(app.instance_path))
     except Exception as e:
-        return jsonify(e), 500
+        return jsonify(str(e)), 500
     try:
         to_predict = json.loads(request.data.decode('utf-8'))['input']
     except Exception as e:
@@ -140,6 +140,25 @@ def model_predict(model_id):
     prediction = model.predict(to_predict)
     result = {'label' : prediction[0][0], 'score' : prediction[1][0]}
     return jsonify(result)
+
+
+@app.route("/feedback", methods=['GET'])
+def get_feedback():
+    model_id = request.args.get('model_id')
+    limit = request.args.get('limit')
+    if not limit:
+        limit = 10
+    else:
+        limit = int(limit)
+    try:
+        if model_id:
+            results = feedback_conn.get_feedback(model_id, limit)
+        else:
+            results = feedback_conn.get_feedback(None, limit)
+        return jsonify(results),200
+    except Exception as e:
+        jsonify(str(e)), 500
+
 
 if __name__ == "__main__":
     # make sure the instance path is present

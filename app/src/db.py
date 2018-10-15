@@ -1,73 +1,22 @@
 from abc import ABC, abstractmethod
-import redis
+
+##
+# Couchbase:
+# username: admin
+# password: password
+# docker run -d --name db -p 8091-8096:8091-8096 -p 11210-11211:11210-11211 couchbase
+
+# cbexport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -o feedback.json -f lines
+# cbimport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -d file://feedback.json -f lines
+##
+from couchbase.bucket import Bucket, NotFoundError
+from couchbase.views.iterator import View
+from couchbase.n1ql import N1QLQuery
+
 from src.exceptions import InvalidType
-from flask import g
-import src.constants
 
 
-class Database(ABC):
-
-    def __init__(self, host, port, user=None, password=None):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.db = self.__create__()
-
-    def get_db(self):
-        return self.db
-
-    @abstractmethod
-    def __create__(self):
-        pass
-
-    @abstractmethod
-    def store(self, key, info):
-        pass
-
-    @abstractmethod
-    def find(self, key):
-        pass
-
-    @abstractmethod
-    def findall(self, key):
-        pass
-
-
-class RedisDB(Database):
-
-    def __create__(self):
-        return redis.StrictRedis(
-            host=self.host,
-            port=self.port,
-            password=self.password,
-            charset='utf-8',
-            decode_responses=True
-        )
-
-    def store(self, key, info):
-        """
-        For some reason I decided to treat
-        Redis like a document store.
-        This will split the key into a set
-        and connect the key with its
-        'document', the info
-        :param key:
-        :param info:
-        :return:
-        """
-        self.db.sadd(src.constants.MODEL_KEYSPACE, key)
-        self.db.hmset(key, info)
-
-    def findall(self, key):
-        return self.db.smembers(key)
-
-    def find(self, key):
-        return self.db.hgetall(key)
-
-
-class FeedbackDB(ABC):
-
+class AbstractDatabase(ABC):
     def __init__(self, host, port, user=None, password=None):
         self.host = host
         self.port = port
@@ -76,19 +25,119 @@ class FeedbackDB(ABC):
         self.db = self.__create__()
 
     @abstractmethod
-    def store_feedback(self, model_key, feedback_info):
-        pass
-
-    @abstractmethod
-    def get_feedback_for_model(self, model_key):
-        pass
-
-    @abstractmethod
     def __create__(self):
         pass
 
 
-def get_db(db_class, host='localhost', port='6379', user=None, password=None):
+class ModelInfoDatabase(AbstractDatabase):
+
+    @abstractmethod
+    def find_model_info(self, key):
+        pass
+
+
+    @abstractmethod
+    def find_all_model_info(self, limit=10):
+        pass
+
+
+    @abstractmethod
+    def store_model_info(self, key, model_info):
+        pass
+
+
+class FeedbackDatabase(AbstractDatabase):
+
+    @abstractmethod
+    def store_feedback(self, key, feedback_info):
+        pass
+
+    @abstractmethod
+    def get_feedback(self, key, limit):
+        pass
+
+
+class CouchFeedback(FeedbackDatabase) :
+    """
+    TODO: add a "start" point as well as a limit
+        1. create some random unique id (timestamp) for each doc
+        2. add model id for each doc
+        3. create expiry for each doc
+        4. run a query to find all docs for that model id (in N1QL)
+        """
+    def __create__(self):
+        conn_str = self.CONNSTR.format(self.host, self.port)
+        return Bucket(conn_str, username=self.user, password=self.password)
+
+    CONNSTR = 'couchbase://localhost:8091/feedback'
+    ALL_QUERY_STRING = 'SELECT * FROM feedback'
+    MODEL_QUERY_STRING = 'WHERE feedback.model_id == {0}'
+    PRIMARY_INDEX = 'prifb'
+    TEN_DAYS_SECONDS = 10*24*60*60
+
+    def store_feedback(self, key, feedback_info):
+        feedback = self.db.get(key)
+        feedback.append(feedback_info)
+        # automatically store key with ttl of 10 days
+        self.db.upsert(key, feedback, ttl=self.TEN_DAYS_SECONDS)
+
+    def get_feedback(self, key, limit):
+        fb = []
+        count = 0
+        if key:
+            q = N1QLQuery(self.ALL_QUERY_STRING + ' ' + self.MODEL_QUERY_STRING.format(key))
+        else:
+            q = N1QLQuery(self.ALL_QUERY_STRING)
+        results = self.db.n1ql_query(q)
+        for i in results:
+            if count < limit:
+                info = i['feedback']
+                fb.append(info)
+                count += 1
+            else:
+                break
+
+        return fb
+
+
+class CouchModelInfo(ModelInfoDatabase) :
+
+    CONNSTR = 'couchbase://{0}:{1}/model-info'
+    DDOC = 'dev_metrics'
+    VIEW = 'model_metrics' # todo: are views exported?
+
+    def __create__(self):
+        conn_str = self.CONNSTR.format(self.host, self.port)
+        return Bucket(conn_str, username=self.user, password=self.password)
+
+    def find_model_info(self, key):
+        try:
+            result = self.db.get(key)
+            return result.value
+        except NotFoundError:
+            return None
+
+    def store_model_info(self, key, model_info):
+        self.db.insert(key, model_info)
+
+    def find_all_model_info(self, limit=10):
+        # TODO: add a "start" point as well as a limit
+        # so that you can paginate
+        view = View(self.db, self.DDOC, self.VIEW)
+        results = []
+        count = 0
+        for v in view:
+            if count == limit:
+                break
+            model = dict()
+            model[v.key] = v.value
+            results.append(model)
+            count += 1
+
+        return results
+
+
+def get_modelinfo_db(db_class, host='localhost', port='8091', user=None, password=None):
     # if 'db' not in g:
     #     g.db = redis.Redis(
     #         host="localhost",
@@ -97,18 +146,17 @@ def get_db(db_class, host='localhost', port='6379', user=None, password=None):
     #     )
     # return g.db
     # TODO: make sure DB connection is created and cached
-    for clz in Database.__subclasses__():
+    for clz in ModelInfoDatabase.__subclasses__():
         if clz.__name__ == db_class:
             return clz(host, port, user, password)
 
     raise InvalidType('{0} is not a valid database type'.format(db_class))
 
 
-def close_db():
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+def get_feedback_db(db_class, host='localhost', port='8091', user=None, password=None):
+    # TODO: make sure DB connection is created and cached
+    for clz in FeedbackDatabase.__subclasses__():
+        if clz.__name__ == db_class:
+            return clz(host, port, user, password)
 
-
-def init_app(app):
-    app.teardown_appcontext(close_db)
+    raise InvalidType('{0} is not a valid database type'.format(db_class))

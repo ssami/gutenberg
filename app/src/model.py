@@ -43,7 +43,8 @@ class ModelInfo():
 
 class FeedbackInfo():
 
-    def __init__(self, model_id, label_actual, label_expected):
+    def __init__(self, text, model_id, label_actual, label_expected):
+        self.text = text
         self.model_id = model_id
         self.label_actual = label_actual
         self.label_expected = label_expected
