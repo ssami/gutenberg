@@ -1,7 +1,6 @@
 from minio import Minio
 from minio.error import (ResponseError, BucketAlreadyOwnedByYou,
                          BucketAlreadyExists)
-import sys
 import argparse
 
 if __name__ == "__main__":
