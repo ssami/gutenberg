@@ -1,6 +1,5 @@
 """
-Redis: ~/Git_personal/MachineLearning/gutenberg/redis-stable/src/redis-server
-Minio: [start Docker] docker run -p 9000:9000 -e "MINIO_ACCESS_KEY=admin" -e "MINIO_SECRET_KEY=password" minio/minio server /data
+Postman collection: https://www.getpostman.com/collections/0b5d7afae1db013baf80
 
 
 Issues:
@@ -142,23 +141,30 @@ def model_predict(model_id):
     return jsonify(result)
 
 
-@app.route("/feedback", methods=['GET'])
+@app.route("/feedback", methods=['GET', 'PUT'])
 def get_feedback():
-    model_id = request.args.get('model_id')
-    limit = request.args.get('limit')
-    if not limit:
-        limit = 10
-    else:
-        limit = int(limit)
-    try:
-        if model_id:
-            results = feedback_conn.get_feedback(model_id, limit)
+    if request.method == 'GET':
+        model_id = request.args.get('model_id')
+        limit = request.args.get('limit')
+        if not limit:
+            limit = 10
         else:
-            results = feedback_conn.get_feedback(None, limit)
-        return jsonify(results),200
-    except Exception as e:
-        jsonify(str(e)), 500
-
+            limit = int(limit)
+        try:
+            if model_id:
+                results = feedback_conn.get_feedback(model_id, limit)
+            else:
+                results = feedback_conn.get_feedback(None, limit)
+            return jsonify(results),200
+        except Exception as e:
+            jsonify(str(e)), 500
+    else:
+        feedback = request.get_json()
+        try:
+            fb_id = feedback_conn.store_feedback(feedback)
+            return jsonify(fb_id), 201
+        except Exception as e:
+            return jsonify(str(e)), 500
 
 if __name__ == "__main__":
     # make sure the instance path is present

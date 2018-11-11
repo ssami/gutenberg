@@ -1,19 +1,11 @@
 from abc import ABC, abstractmethod
 
-##
-# Couchbase:
-# username: admin
-# password: password
-# docker run -d --name db -p 8091-8096:8091-8096 -p 11210-11211:11210-11211 couchbase
-
-# cbexport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -o feedback.json -f lines
-# cbimport json -c couchbase://172.17.0.2 -u admin -p password -b feedback -d file://feedback.json -f lines
-##
 from couchbase.bucket import Bucket, NotFoundError
 from couchbase.views.iterator import View
 from couchbase.n1ql import N1QLQuery
 
 from src.exceptions import InvalidType
+import time
 
 
 class AbstractDatabase(ABC):
@@ -75,11 +67,12 @@ class CouchFeedback(FeedbackDatabase) :
     PRIMARY_INDEX = 'prifb'
     TEN_DAYS_SECONDS = 10*24*60*60
 
-    def store_feedback(self, key, feedback_info):
-        feedback = self.db.get(key)
-        feedback.append(feedback_info)
-        # automatically store key with ttl of 10 days
-        self.db.upsert(key, feedback, ttl=self.TEN_DAYS_SECONDS)
+    def store_feedback(self, feedback_info, key=None):
+        # if key is none, create a timestamp
+        if not key:
+            key = str(int(time.time()))
+        self.db.insert(key, feedback_info, ttl=self.TEN_DAYS_SECONDS)
+        return key
 
     def get_feedback(self, key, limit):
         fb = []
