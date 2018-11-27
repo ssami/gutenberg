@@ -1,5 +1,5 @@
 # Redis: ~/Git_personal/MachineLearning/gutenberg/redis-stable/src/redis-server
-# Minio: [start Docker] docker run -p 9000:9000 -e "MINIO_ACCESS_KEY=admin" -e "MINIO_SECRET_KEY=password" minio/minio server /data
+# Minio: [start Docker] docker run -p 9000:9000 -e "MINIO_ACCESS_KEY=admin" -e "MINIO_SECRET_KEY=password" minio/minio:latest server /data
 ##
 # Couchbase:
 # username: admin
@@ -38,3 +38,7 @@ This seems simple enough. But why do you need to implement the "fit" method? It'
 
 Nov 10
 In all our excitement, we have forgotten that the Python wrapping of fastText only takes in a full file! We could of course build a Scikit pipeline that does all of the cleaning and training around the original data, and then build a script to do our own grid search. Ok, let's focus on building a data cleaning pipeline then, which includes grabbing the latest feedback from the database. That pipeline should be kicked off automatically, with cron or similar in another Docker.
+
+Nov 27
+Model retraining would only be useful if we can pass the retrainer the model ID that we are dealing with.
+To do that, we need to also store the trained data file location or something - where can i get the data from? -- for each model.

@@ -1,25 +1,5 @@
 """
 Postman collection: https://www.getpostman.com/collections/0b5d7afae1db013baf80
-
-
-Issues:
-1. g variable is only request-specific. Cannot share data between requests.
-2. Session is only used for user/browser data. Tested and showed that session
-info between current Chrome browser and incognito is not shared.
-3. Models could be too large to be passed around this way either.
-4. And anyway models are not JSON serializable which means they cannot be stored
-in the session object.
-
-Technically, we need to spin up Docker containers to serve the models,
-then have the models do some kind of sampling/reporting so that we can
-record feedback.
-
-But for now, we can load the models whenever we want a prediction.
-When we want a prediction, we can specify which model to use and then
-ask for a prediction.
-Sending feedback to the DB can be done via model ID: input, model output,
-expected output. Can do this with Redis also actually.
-
 """
 
 from flask import Flask, request, jsonify, session

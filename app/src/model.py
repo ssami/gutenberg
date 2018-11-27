@@ -3,7 +3,7 @@ from src.generator import ModelHashGenerator
 from src.exceptions import InvalidDataError
 from abc import ABC, abstractmethod
 from src.exceptions import ModelException, LoaderException
-import fastText
+import fasttext
 
 from src.exceptions import InvalidType
 from src.model_loader import BaseModelLoader
@@ -74,7 +74,7 @@ class FastTextModel(BaseModel):
 
     def load(self, local_path=None):
         try:
-            self.model = fastText.load_model(
+            self.model = fasttext.load_model(
                 self.model_loader.read(local_path))
         except LoaderException as e:
             raise e
