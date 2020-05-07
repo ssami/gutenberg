@@ -1,0 +1,16 @@
+FROM ubuntu:16.04
+# keep it up for a while so we can test and install stuff
+# delete after Dockerfile is finished!
+
+ADD gui/gtbg /gtbg
+
+ADD startup.sh /
+RUN chmod +x /startup.sh
+RUN ./startup.sh
+
+ADD run.sh /
+RUN chmod +x /run.sh
+
+CMD ["/bin/bash", "/run.sh"]
+
+# run like: docker run -d -p 127.0.0.1:4200:4200 mynode

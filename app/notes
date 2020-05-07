@@ -10,6 +10,19 @@
 # cbrestore /2018-10-08T052813Z/2018-10-08T052813Z-full/ http://localhost:8091 --bucket-source=feedback --bucket-destination=feedback -u admin -p password
 
 
+Docker compose:
+1. Couchbase
+    - need to also include restore option for availability of views and so on - or, use the API to construct them during startup
+2. Minio
+3. Gutenberg itself
+    - need a Docker container for it
+    - what to do about the fastText dependencies?
+    - need to move them out to another Docker container that just serves the model
+4. fastText
+
+
+-----------------------------------------------------
+
 Now that we have set up Spark with Docker and are able to run some PySpark examples on it, we can even move the original training data into the Spark container.
 However, that leaves us with a different problem, which is -- what to do with the feedback data? It needs to be moved into the Spark environment for us to really use it to train.
 
@@ -42,3 +55,5 @@ In all our excitement, we have forgotten that the Python wrapping of fastText on
 Nov 27
 Model retraining would only be useful if we can pass the retrainer the model ID that we are dealing with.
 To do that, we need to also store the trained data file location or something - where can i get the data from? -- for each model.
+We also need to write an actual retraining pipeline that takes in the entire list of models and does retraining for each.
+Not just part of the data train stuff but a cron job.
