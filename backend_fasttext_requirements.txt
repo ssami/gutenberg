@@ -43,7 +43,7 @@ prompt-toolkit==1.0.15
 ptyprocess==0.6.0
 py==1.5.4
 pybind11==2.2.3
-Pygments==2.2.0
+Pygments==2.7.4
 pyparsing==2.2.0
 pytest==3.7.1
 python-dateutil==2.7.3
